@@ -1,15 +1,19 @@
 {
   "name": "tadashi-board",
-  "version": "1.0.0",
-  "description": "余ったPC用・超シンプルリアルタイム掲示板",
-  "main": "server.js",
+  "version": "2.0.0",
+  "description": "余ったPC用・静的掲示板（Supabase 連携）",
   "scripts": {
-    "start": "node server.js"
+    "build": "node scripts/write-config.js",
+    "start": "npm run build && npx serve public -l 3000",
+    "legacy:start": "node legacy/server.js"
   },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
     "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "serve": "^14.2.4"
   }
 }

@@ -3,6 +3,7 @@
  * - 表示画面: / ?mode=admin なし
  * - 管理画面: /?mode=admin
  * データはサーバー メモリ上のみ（再起動で消えます）
+ * ※ v2 以降は legacy。本番は public/ の Static Site + Supabase。
  */
 
 const express = require('express');
