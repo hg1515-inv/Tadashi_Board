@@ -227,8 +227,26 @@
       sendBtn.disabled = true;
       showToast('クリア中…', true);
       try {
-        const { error } = await client.rpc('clear_all_posts');
-        if (error) throw error;
+        // 1. 全投稿を取得して image_path を収集
+        const { data: allPosts, error: fetchErr } = await client
+          .from('posts')
+          .select('id, image_path');
+        if (fetchErr) throw fetchErr;
+
+        // 2. Storage 画像を Storage API で削除（直接 DB テーブル削除は不可）
+        const paths = (allPosts || []).map(function (p) { return p.image_path; }).filter(Boolean);
+        if (paths.length > 0) {
+          const { error: storageErr } = await client.storage.from(BUCKET).remove(paths);
+          if (storageErr) console.warn('Storage 削除エラー（続行）:', storageErr.message);
+        }
+
+        // 3. posts テーブルを全削除（RLS: anon DELETE 許可済み）
+        const { error: delErr } = await client
+          .from('posts')
+          .delete()
+          .gte('created_at', '1970-01-01T00:00:00Z'); // 全件対象
+        if (delErr) throw delErr;
+
         showToast('表示をクリアしました', true);
         msgEl.value = '';
         imageInput.value = '';
