@@ -170,6 +170,37 @@
     });
   }
 
+  /**
+   * DB\u30c8\u30ea\u30ac\u30fc\u306fStorage\u3092\u76f4\u63a5\u524a\u9664\u3067\u304d\u306a\u3044\u305f\u3081\u3001JS\u5074\u304c4\u4ef6\u76ee\u4ee5\u964d\u3092\u30c8\u30ea\u30df\u30f3\u30b0\u3059\u308b
+   * \uff08INSERT\u5f8c\u306b\u547c\u3073\u51fa\u3059\uff09
+   */
+  async function trimOldPosts(client) {
+    try {
+      // \u5168\u4ef6\u3092\u53d6\u5f97\uff08\u964d\u9806\uff09
+      const { data: all, error: fetchErr } = await client
+        .from('posts')
+        .select('id, image_path, created_at')
+        .order('created_at', { ascending: false });
+      if (fetchErr || !all) return;
+
+      // MAX_POSTS\u4ef6\u3092\u8d85\u3048\u305f\u53e4\u3044\u6295\u7a3f
+      const toDelete = all.slice(MAX_POSTS);
+      if (toDelete.length === 0) return;
+
+      // Storage\u753b\u50cf\u3092 Storage API \u3067\u524a\u9664
+      const paths = toDelete.map(function (p) { return p.image_path; }).filter(Boolean);
+      if (paths.length > 0) {
+        await client.storage.from(BUCKET).remove(paths);
+      }
+
+      // DB\u884c\u3092\u524a\u9664
+      const ids = toDelete.map(function (p) { return p.id; });
+      await client.from('posts').delete().in('id', ids);
+    } catch (e) {
+      console.warn('trimOldPosts \u30a8\u30e9\u30fc\uff08\u7d9a\u884c\uff09:', e.message);
+    }
+  }
+
   /** 管理画面 */
   function initAdmin() {
     document.body.className = 'admin-root';
@@ -298,6 +329,9 @@
           }
           throw insErr;
         }
+
+        // DBトリガーはStorage削除不可のため、JS側で4件目以降をトリミング
+        await trimOldPosts(client);
 
         showToast('送信しました（最新 ' + MAX_POSTS + ' 件のみ保持）', true);
         msgEl.value = '';

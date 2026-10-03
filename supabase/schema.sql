@@ -52,28 +52,23 @@ create policy "board_images_delete"
   to anon, authenticated
   using (bucket_id = 'board-images');
 
--- ========== 4 件目以降を削除（画像含む） ==========
+-- ========== 4 件目以降を削除（DB行のみ。Storage 削除は JS 側が担当） ==========
+-- NOTE: storage.objects を SQL から直接 DELETE するとエラーになるため、
+--       JS 側（Storage API 経由）でオブジェクトを削除してからこちらが呼ばれる設計。
 create or replace function public.trim_posts_keep_three()
 returns trigger
 language plpgsql
 security definer
-set search_path = public, storage
+set search_path = public
 as $$
-declare
-  rec record;
 begin
-  for rec in
-    select id, image_path
-    from public.posts
+  -- DB 行だけ削除（Storage ファイルは JS 側が削除済み）
+  delete from public.posts
+  where id in (
+    select id from public.posts
     order by created_at desc
     offset 3
-  loop
-    if rec.image_path is not null and rec.image_path <> '' then
-      delete from storage.objects
-      where bucket_id = 'board-images' and name = rec.image_path;
-    end if;
-    delete from public.posts where id = rec.id;
-  end loop;
+  );
   return new;
 end;
 $$;
@@ -84,25 +79,18 @@ create trigger posts_after_insert_trim
   for each row
   execute function public.trim_posts_keep_three();
 
--- ========== 管理画面「表示をクリア」 ==========
+-- ========== 管理画面「表示をクリア」（DB行削除のみ。Storage 削除は JS 側） ==========
 create or replace function public.clear_all_posts()
 returns void
 language plpgsql
 security definer
-set search_path = public, storage
+set search_path = public
 as $$
-declare
-  rec record;
 begin
-  for rec in select image_path from public.posts
-  loop
-    if rec.image_path is not null and rec.image_path <> '' then
-      delete from storage.objects
-      where bucket_id = 'board-images' and name = rec.image_path;
-    end if;
-  end loop;
+  -- DB 行だけ削除（Storage ファイルは JS 側が Storage API で削除済み）
   delete from public.posts;
 end;
 $$;
 
 grant execute on function public.clear_all_posts() to anon, authenticated;
+
